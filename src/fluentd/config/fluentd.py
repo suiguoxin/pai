@@ -3,7 +3,7 @@ import copy
 import logging
 
 
-class InternalStorage(object):
+class Fluentd(object):
     def __init__(self, cluster_conf, service_conf, default_service_conf):
         self.cluster_conf = cluster_conf
         self.service_conf = self.merge_service_configuration(service_conf, default_service_conf)
