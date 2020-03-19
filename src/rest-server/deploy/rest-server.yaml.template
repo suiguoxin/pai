@@ -125,7 +125,7 @@ spec:
         - name: SQL_CONNECTION_STR
           value: {{ cluster_cfg['postgresql']['connection-str'] }}
 {% endif %}
-{% if cluster_cfg['cluster']['common']['job-history'] %}
+{% if cluster_cfg['cluster']['common']['job-history'] !== "false" %}
         - name: JOB_HISTORY
           value: "true"
 {% else %}
