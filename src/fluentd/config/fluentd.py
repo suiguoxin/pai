@@ -25,4 +25,5 @@ class Fluentd(object):
         return {}
 
     def validation_post(self, conf):
+        print(conf)
         return True, None
