@@ -6,7 +6,6 @@ import logging
 class Fluentd(object):
     def __init__(self, cluster_conf, service_conf, default_service_conf):
         self.cluster_conf = cluster_conf
-        self.service_conf = self.merge_service_configuration(service_conf, default_service_conf)
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
@@ -20,12 +19,10 @@ class Fluentd(object):
 
     def validation_pre(self):
         print(self.cluster_conf)
-        print(self.service_conf)
         return True, None
 
     def run(self):
-        result = copy.deepcopy(self.service_conf)
-        return result
+        return {}
 
     def validation_post(self, conf):
         return True, None
