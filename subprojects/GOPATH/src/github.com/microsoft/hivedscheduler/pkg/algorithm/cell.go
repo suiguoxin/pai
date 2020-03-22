@@ -179,7 +179,9 @@ func (c *PhysicalCell) SetState(s CellState) {
 	c.apiStatus.CellState = api.CellState(s)
 	if c.virtualCell != nil {
 		c.virtualCell.state = s
+		c.virtualCell.apiStatus.CellState = api.CellState(s)
 		c.apiStatus.VirtualCell.CellState = api.CellState(s)
+		c.virtualCell.apiStatus.PhysicalCell.CellState = api.CellState(s)
 	}
 }
 
@@ -199,16 +201,24 @@ func (c *PhysicalCell) SetPhysicalResources(nodes []string, gpuIndices []int32) 
 func (c *PhysicalCell) AddUsingGroup(g *AlgoAffinityGroup) {
 	if c.usingGroup != nil {
 		klog.Errorf("Error when adding using affinity group %v to cell %v: already another using group %v",
-			g.name, c.GetAddress(), c.usingGroup.name)
+			g.name, c.address, c.usingGroup.name)
 	}
 	c.usingGroup = g
+	klog.Infof("Cell %v is now used by affinity group %v", c.address, g.name)
+	c.SetState(cellUsed)
 }
 
 func (c *PhysicalCell) DeleteUsingGroup(g *AlgoAffinityGroup) {
 	if c.usingGroup == nil || c.usingGroup.name != g.name {
-		klog.Errorf("Error when deleting affinity group %v from cell %v: not found", g.name, c.GetAddress())
+		klog.Errorf("Error when deleting affinity group %v from cell %v: not found", g.name, c.address)
 	}
 	c.usingGroup = nil
+	klog.Infof("Cell %v is no longer used by affinity group %v", c.address, g.name)
+	if c.acquiringGroup != nil {
+		c.SetState(cellAcquired)
+	} else {
+		c.SetState(cellFree)
+	}
 }
 
 func (c *PhysicalCell) GetUsingGroup() *AlgoAffinityGroup {
@@ -218,16 +228,28 @@ func (c *PhysicalCell) GetUsingGroup() *AlgoAffinityGroup {
 func (c *PhysicalCell) AddAcquiringGroup(g *AlgoAffinityGroup) {
 	if c.acquiringGroup != nil {
 		klog.Errorf("Error when adding acquiring affinity group %v to cell %v: already another acquiring group %v",
-			g.name, c.GetAddress(), c.acquiringGroup.name)
+			g.name, c.address, c.acquiringGroup.name)
 	}
-	c.usingGroup = g
+	c.acquiringGroup = g
+	klog.Infof("Cell %v is now being acquired by affinity group %v", c.address, g.name)
+	if c.usingGroup != nil {
+		c.SetState(cellAcquiring)
+	} else {
+		c.SetState(cellAcquired)
+	}
 }
 
 func (c *PhysicalCell) DeleteAcquiringGroup(g *AlgoAffinityGroup) {
 	if c.acquiringGroup == nil || c.acquiringGroup.name != g.name {
-		klog.Errorf("Error when deleting acquiring affinity group %v from cell %v: not found", g.name, c.GetAddress())
+		klog.Errorf("Error when deleting acquiring affinity group %v from cell %v: not found", g.name, c.address)
 	}
 	c.acquiringGroup = nil
+	klog.Infof("Cell %v is no longer acquired by affinity group %v", c.address, g.name)
+	if c.usingGroup != nil {
+		c.SetState(cellUsed)
+	} else {
+		c.SetState(cellFree)
+	}
 }
 
 func (c *PhysicalCell) GetAcquiringGroup() *AlgoAffinityGroup {
@@ -366,6 +388,7 @@ func (c *VirtualCell) SetPhysicalCell(cell *PhysicalCell) {
 	c.physicalCell = cell
 	if cell == nil {
 		c.apiStatus.PhysicalCell = nil
+		c.apiStatus.CellHealthiness = api.CellHealthy
 	} else {
 		pcs := &api.PhysicalCellStatus{}
 		// shallow copy the status, clear the pointers to avoid reference
@@ -373,6 +396,7 @@ func (c *VirtualCell) SetPhysicalCell(cell *PhysicalCell) {
 		pcs.CellChildren = nil
 		pcs.VirtualCell = nil
 		c.apiStatus.PhysicalCell = pcs
+		c.apiStatus.CellHealthiness = pcs.CellHealthiness
 	}
 }
 

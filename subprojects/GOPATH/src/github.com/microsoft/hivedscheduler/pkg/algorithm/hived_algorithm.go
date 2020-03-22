@@ -159,7 +159,7 @@ func (h *HivedAlgorithm) Schedule(pod *core.Pod, suggestedNodes []string) intern
 	var (
 		groupPhysicalPlacement groupPhysicalPlacement // GPU number -> a set of pods -> a set of GPUs of each pod
 		groupVirtualPlacement  groupVirtualPlacement  // GPU number -> a set of pods -> a set of GPUs of each pod
-		preemptionVictims      map[string][]*core.Pod // node -> pods
+		preemptionVictims      map[string]common.Set  // node -> pods
 		podIndex               int32                  // index of among the pods with the same GPU number in the group, 0 by default
 	)
 
@@ -207,7 +207,7 @@ func (h *HivedAlgorithm) AddAllocatedPod(pod *core.Pod) {
 	klog.Infof("[%v]: Adding allocated pod...", internal.Key(pod))
 	s := internal.ExtractPodSchedulingSpec(pod)
 	info := internal.ExtractPodBindInfo(pod)
-	klog.Infof("[%v]: Adding to node %v, GPUs %v", internal.Key(pod), info.Node, info.GpuIsolation)
+	klog.Infof("[%v]: Adding to node %v, GPUs %v", internal.Key(pod), info.Node, common.ToJson(info.GpuIsolation))
 
 	if g := h.preemptingAffinityGroups[s.AffinityGroup.Name]; g != nil {
 		h.preemptingAffinityGroupToAllocated(g, pod)
@@ -232,7 +232,7 @@ func (h *HivedAlgorithm) DeleteAllocatedPod(pod *core.Pod) {
 	klog.Infof("[%v]: Deleting allocated pod...", internal.Key(pod))
 	s := internal.ExtractPodSchedulingSpec(pod)
 	info := internal.ExtractPodBindInfo(pod)
-	klog.Infof("[%v]: Deleting from node %v, GPUs %v", internal.Key(pod), info.Node, info.GpuIsolation)
+	klog.Infof("[%v]: Deleting from node %v, GPUs %v", internal.Key(pod), info.Node, common.ToJson(info.GpuIsolation))
 
 	if g := h.allocatedAffinityGroups[s.AffinityGroup.Name]; g == nil {
 		klog.Errorf("[%v]: Group %v not found when deleting pod", internal.Key(pod), s.AffinityGroup.Name)
@@ -737,8 +737,7 @@ func (h *HivedAlgorithm) createPreemptingAffinityGroup(
 	pod *core.Pod) {
 
 	newGroup := newAlgoAffinityGroup(
-		s.AffinityGroup, s.VirtualCluster, s.GangReleaseEnable, s.LazyPreemptionEnable, groupPreempting)
-	p := CellPriority(s.Priority)
+		s.AffinityGroup, s.VirtualCluster, s.GangReleaseEnable, s.LazyPreemptionEnable, s.Priority, groupPreempting)
 	newGroup.physicalGpuPlacement = physicalPlacement
 	newGroup.virtualGpuPlacement = virtualPlacement
 	for gpuNum := range physicalPlacement {
@@ -746,17 +745,12 @@ func (h *HivedAlgorithm) createPreemptingAffinityGroup(
 			for gpuIndex, gpu := range physicalPlacement[gpuNum][podIndex] {
 				pGpu := gpu.(*PhysicalCell)
 				vGpu := virtualPlacement[gpuNum][podIndex][gpuIndex].(*VirtualCell)
-				// state of pGpu must be either Free or Used (if it was Acquiring or Acquired,
-				// the preemption must have been cancelled before, in h.scheduleGuaranteedAffinityGroup)
-				if pGpu.GetState() == cellFree {
-					pGpu.SetState(cellAcquired)
-				} else { // cellUsed
+				if pGpu.GetState() == cellUsed {
 					usingGroup := pGpu.GetUsingGroup()
 					h.releaseGpu(pGpu, usingGroup.vc)
-					pGpu.SetState(cellAcquiring)
 					usingGroup.state = groupBeingPreempted
 				}
-				h.allocateGpu(pGpu, vGpu, p, newGroup.vc)
+				h.allocateGpu(pGpu, vGpu, CellPriority(s.Priority), newGroup.vc)
 				pGpu.AddAcquiringGroup(newGroup)
 			}
 		}
@@ -772,11 +766,17 @@ func (h *HivedAlgorithm) deletePreemptingAffinityGroup(g *AlgoAffinityGroup, new
 				pGpu := gpu.(*PhysicalCell)
 				h.releaseGpu(pGpu, g.vc)
 				pGpu.DeleteAcquiringGroup(pGpu.GetAcquiringGroup())
-				// state of a cell of a preempting group must be either Acquired or Acquiring
-				if pGpu.GetState() == cellAcquired {
-					pGpu.SetState(cellFree)
-				} else { // cellAcquiring
-					pGpu.SetState(cellUsed)
+				if pGpu.GetState() == cellUsed {
+					// return the cell to the group being preempted
+					beingPreemptedGroup := pGpu.GetUsingGroup()
+					var beingPreemptedVGpu *VirtualCell
+					if beingPreemptedGroup.virtualGpuPlacement != nil {
+						beingPreemptedVGpu = retrieveVirtualCell(
+							beingPreemptedGroup.physicalGpuPlacement,
+							beingPreemptedGroup.virtualGpuPlacement, pGpu)
+					}
+					h.allocateGpu(
+						pGpu, beingPreemptedVGpu, CellPriority(beingPreemptedGroup.priority), beingPreemptedGroup.vc)
 				}
 			}
 		}
@@ -793,7 +793,6 @@ func (h *HivedAlgorithm) preemptingAffinityGroupToAllocated(g *AlgoAffinityGroup
 				pGpu := gpu.(*PhysicalCell)
 				pGpu.DeleteAcquiringGroup(g)
 				pGpu.AddUsingGroup(g)
-				pGpu.SetState(cellUsed)
 			}
 		}
 	}
@@ -806,7 +805,7 @@ func (h *HivedAlgorithm) preemptingAffinityGroupToAllocated(g *AlgoAffinityGroup
 // createAllocatedAffinityGroup creates a new affinity group, and confirms the allocated resources.
 func (h *HivedAlgorithm) createAllocatedAffinityGroup(s *api.PodSchedulingSpec, info *api.PodBindInfo, pod *core.Pod) {
 	newGroup := newAlgoAffinityGroup(
-		s.AffinityGroup, s.VirtualCluster, s.GangReleaseEnable, s.LazyPreemptionEnable, groupAllocated)
+		s.AffinityGroup, s.VirtualCluster, s.GangReleaseEnable, s.LazyPreemptionEnable, s.Priority, groupAllocated)
 	shouldLazyPreempt := false
 	for _, gms := range info.AffinityGroupBindInfo {
 		gpuNumber := int32(len(gms.PodPlacements[0].PhysicalGpuIndices))
@@ -845,7 +844,6 @@ func (h *HivedAlgorithm) createAllocatedAffinityGroup(s *api.PodSchedulingSpec, 
 					// In this case, we will lazy preempt this affinity group.
 					success, message := h.allocateGpu(pGpu, vGpu, CellPriority(s.Priority), newGroup.vc)
 					pGpu.AddUsingGroup(newGroup)
-					pGpu.SetState(cellUsed)
 					if !success {
 						shouldLazyPreempt = true
 						klog.Warningf("[%v]: %v", internal.Key(pod), message)
@@ -872,13 +870,11 @@ func (h HivedAlgorithm) deleteAllocatedAffinityGroup(g *AlgoAffinityGroup, pod *
 				}
 				pGpu := gpu.(*PhysicalCell)
 				pGpu.DeleteUsingGroup(g)
-				// state of a cell of an allocated group must be either Used or Acquiring
-				if pGpu.GetState() == cellUsed {
+				// State of pGpu can be either Free or Acquired now. We should call h.releaseGpu
+				// only when it is in Free state; otherwise the cell must have been allocated
+				// to the acquiring group before, we shouldn't release it.
+				if pGpu.GetState() == cellFree {
 					h.releaseGpu(pGpu, g.vc)
-					pGpu.SetState(cellFree)
-				} else { // cellAcquiring
-					// the cell has been allocated to the acquiring group before, so we shouldn't release it
-					pGpu.SetState(cellAcquired)
 				}
 			}
 		}
@@ -1014,8 +1010,8 @@ func (h *HivedAlgorithm) releaseGpu(pGpu *PhysicalCell, vcn api.VirtualClusterNa
 		h.apiClusterStatus.VirtualClusters[vcn] = h.apiClusterStatus.VirtualClusters[vcn][:novc-1]
 		pGpu.GetAPIStatus().VC = ""
 	}
-	setPriority(pGpu, freePriority)
 	updateUsedGpuNumAtPriority(pGpu, pGpu.GetPriority(), false)
+	setPriority(pGpu, freePriority)
 }
 
 // confirmAllocatedGpu creates the cell bindings, removes the physical cell from the free list

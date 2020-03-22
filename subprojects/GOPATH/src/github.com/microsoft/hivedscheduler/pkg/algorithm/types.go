@@ -119,6 +119,7 @@ type AlgoAffinityGroup struct {
 	vc                   api.VirtualClusterName
 	gangReleaseEnable    bool
 	lazyPreemptionEnable bool
+	priority             int32
 	totalPodNums         map[int32]int32        // GpuNum -> PodNum
 	allocatedPods        map[int32][]*core.Pod  // GpuNum -> a list of allocated pods
 	physicalGpuPlacement groupPhysicalPlacement // GpuNum -> a list of pods -> a list of physical GPU cells of each pod
@@ -132,6 +133,7 @@ func newAlgoAffinityGroup(
 	vc api.VirtualClusterName,
 	gangReleaseEnable bool,
 	lazyPreemptionEnable bool,
+	priority int32,
 	state affinityGroupState) *AlgoAffinityGroup {
 
 	podNums := make(map[int32]int32)
@@ -143,6 +145,7 @@ func newAlgoAffinityGroup(
 		vc:                   vc,
 		gangReleaseEnable:    true,
 		lazyPreemptionEnable: lazyPreemptionEnable,
+		priority:             priority,
 		totalPodNums:         podNums,
 		allocatedPods:        map[int32][]*core.Pod{},
 		physicalGpuPlacement: groupPhysicalPlacement{},
