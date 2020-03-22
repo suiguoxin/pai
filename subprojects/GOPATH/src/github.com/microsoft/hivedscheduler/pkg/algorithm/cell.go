@@ -304,6 +304,16 @@ func (c *PhysicalCell) GetAPIStatus() *api.PhysicalCellStatus {
 	return c.apiStatus
 }
 
+func (c *PhysicalCell) SetHealthiness(h api.CellHealthiness) {
+	klog.Infof("Cell %v is set to %v", c.address, h)
+	c.GetAPIStatus().CellHealthiness = h
+	if c.virtualCell != nil {
+		c.GetAPIStatus().VirtualCell.CellHealthiness = h
+		c.virtualCell.GetAPIStatus().CellHealthiness = h
+		c.virtualCell.GetAPIStatus().PhysicalCell.CellHealthiness = h
+	}
+}
+
 // VirtualCell defines a cell in a VC.
 type VirtualCell struct {
 	GenericCell

@@ -114,8 +114,8 @@ func generatePodScheduleResult(
 	}
 }
 
-// generateAffinityGroupBindInfo writes the physical and virtual placements of an affinity group
-// into a a series of AffinityGroupMemberBindInfos, and returns the allocated node and GPU addresses
+// generateAffinityGroupBindInfo translates the physical and virtual placements of an affinity group
+// into a a series of AffinityGroupMemberBindInfos, and also returns the allocated node and GPU addresses
 // of the current pod.
 func generateAffinityGroupBindInfo(
 	groupPhysicalPlacement groupPhysicalPlacement,
@@ -240,6 +240,7 @@ func retrieveMissingPodPlacement(g *AlgoAffinityGroup, gpuNum int32, podIndex in
 		"No allocated pod found in an allocated group %v when retrieving placement for pod %v with GPU number %v", g.name, podIndex, gpuNum))
 }
 
+// retrieveVirtualCell finds the corresponding virtual cell for a physical cell in the placements of an affinity group.
 func retrieveVirtualCell(
 	physicalPlacement groupPhysicalPlacement,
 	virtualPlacement groupVirtualPlacement,
@@ -304,6 +305,62 @@ func getAllocatedPodIndex(info *api.PodBindInfo, gpuNum int32) int32 {
 	return -1
 }
 
+// findPhysicalGpu finds a physical GPU cell in the full list. If the GPU is not found in the chain specified
+// in the PodBindInfo (due to reconfiguration), we will try to search in the other chains.
+func findPhysicalGpu(
+	fullCellList map[CellChain]ChainCellList,
+	chain CellChain,
+	node string,
+	gpuIndex int32) *PhysicalCell {
+
+	if g := findPhysicalGpuInChain(fullCellList, chain, node, gpuIndex); g == nil {
+		for c := range fullCellList {
+			if c != chain {
+				if g = findPhysicalGpuInChain(fullCellList, c, node, gpuIndex); g != nil {
+					klog.Warningf("GPU %v on node %v has been moved to chain %v", gpuIndex, node, c)
+					return g
+				}
+			}
+		}
+		return nil
+	} else {
+		return g
+	}
+}
+
+// findPhysicalGpuInChain finds a physical GPU cell in the full list of a given chain. This search is based on
+// *one* node and *one* GPU index, assuming there is no resource overlapping among cells at the same level.
+func findPhysicalGpuInChain(
+	fullCellList map[CellChain]ChainCellList,
+	chain CellChain,
+	node string,
+	gpuIndex int32) *PhysicalCell {
+
+	for _, c := range fullCellList[chain][1] {
+		success := false
+		cc := c.(*PhysicalCell)
+		nodes, gpuIndices := cc.GetPhysicalPlacement()
+		for _, n := range nodes {
+			if n == node {
+				success = true
+				break
+			}
+		}
+		if success {
+			if gpuIndex < 0 {
+				return cc
+			} else {
+				for _, g := range gpuIndices {
+					if g == gpuIndex {
+						return cc
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // allPodsReleased checks if all the pods of an affinity group were released.
 func allPodsReleased(allocatedPods map[int32][]*core.Pod) bool {
 	for _, pods := range allocatedPods {
@@ -344,4 +401,19 @@ func generateOpporVirtualCell(pc *api.PhysicalCellStatus) *api.VirtualCellStatus
 		PhysicalCell: pc,
 	}
 	return vc
+}
+
+// deleteOpporVirtualCell deletes the fake virtual cell of an opportunistic cell from the VC's API status.
+func deleteOpporVirtualCell(s api.VirtualClusterStatus, addr api.CellAddress) api.VirtualClusterStatus {
+	var opporVirtualCellIdx int32
+	for i, ovc := range s {
+		if ovc.PhysicalCell != nil && ovc.PhysicalCell.CellAddress == addr {
+			opporVirtualCellIdx = int32(i)
+			break
+		}
+	}
+	novc := len(s)
+	s[opporVirtualCellIdx] = s[novc-1]
+	s[novc-1] = nil
+	return s[:novc-1]
 }

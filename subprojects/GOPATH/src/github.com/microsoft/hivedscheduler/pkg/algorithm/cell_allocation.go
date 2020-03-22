@@ -47,6 +47,10 @@ func buddyAlloc(freeList ChainCellList, level CellLevel, suggestedNodes common.S
 	return getFewestOpporPhysicalCell(freeList[level], suggestedNodes)
 }
 
+// mapVirtualCellToPhysical maps a virtual cell to a physical cell. This mapping is done in two steps:
+// We first map its preassigned cell to a physical cell, by calling the buddy cell allocation algorithm.
+// We then map the virtual cell inside the preassigned one to a physical cell, while maintaining
+// equivalence of the topology of the preassigned cell and that of its physical cell.
 func mapVirtualCellToPhysical(c *VirtualCell, freeList ChainCellList, suggestedNodes common.Set) *PhysicalCell {
 	pac := c.GetPreAssignedCell()
 	// check if the preassigned cell has been (temporarily) bound to a physical cell
