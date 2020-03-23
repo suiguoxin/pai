@@ -305,6 +305,18 @@ func getAllocatedPodIndex(info *api.PodBindInfo, gpuNum int32) int32 {
 	return -1
 }
 
+// allPodsReleased checks if all the pods of an affinity group were released.
+func allPodsReleased(allocatedPods map[int32][]*core.Pod) bool {
+	for _, pods := range allocatedPods {
+		for _, p := range pods {
+			if p != nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // findPhysicalGpu finds a physical GPU cell in the full list. If the GPU is not found in the chain specified
 // in the PodBindInfo (due to reconfiguration), we will try to search in the other chains.
 func findPhysicalGpu(
@@ -361,18 +373,6 @@ func findPhysicalGpuInChain(
 	return nil
 }
 
-// allPodsReleased checks if all the pods of an affinity group were released.
-func allPodsReleased(allocatedPods map[int32][]*core.Pod) bool {
-	for _, pods := range allocatedPods {
-		for _, p := range pods {
-			if p != nil {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 // inFreeCellList checks if a physical cell (or its ancestor) is in the global free cell list.
 func inFreeCellList(c *PhysicalCell) bool {
 	for {
@@ -384,6 +384,29 @@ func inFreeCellList(c *PhysicalCell) bool {
 		}
 		c = c.GetParent().(*PhysicalCell)
 	}
+}
+
+// setState sets state for a cell and its parent recursively. A parent cell will be in Used state
+// if any of its children is in Used state. For the other states (Free, Acquired, Acquiring),
+// a parent will be in the state if all of this children are in the state.
+func setState(c *PhysicalCell, s CellState) {
+	c.SetState(s)
+	if c.GetParent() != nil {
+		parent := c.GetParent().(*PhysicalCell)
+		if s == cellUsed || allChildrenSameState(parent, s) {
+			setState(parent, s)
+		}
+	}
+}
+
+// allChildrenSameState checks if all of a cell's children are in the same state.
+func allChildrenSameState(c *PhysicalCell, s CellState) bool {
+	for _, child := range c.GetChildren() {
+		if child.(*PhysicalCell).GetState() != s {
+			return false
+		}
+	}
+	return true
 }
 
 // generateOpporVirtualCell generates a fake virtual cell in a VC's API status

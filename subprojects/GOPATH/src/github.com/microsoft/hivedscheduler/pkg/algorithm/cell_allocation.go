@@ -251,9 +251,8 @@ func unbindCell(c *PhysicalCell) {
 	}
 }
 
-// setPriority sets priority and state for a cell and its parent recursively, guaranteeing that
-// (i) the priority of a cell is the max of those of its children.
-// (ii) a cell is in "Used" state if any of its children is "Used", otherwise "Free".
+// setPriority sets priority for a cell and its parent recursively, guaranteeing that
+// the priority of a cell is the max of those of its children.
 func setPriority(c Cell, p CellPriority) {
 	originalPriority := c.GetPriority()
 	c.SetPriority(p)
