@@ -31,11 +31,34 @@ const app = express();
 app.use(express.json());
 app.use(bearerToken());
 
+// create reusable transporter object using the default SMTP transport
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_CONFIGS_SMTP_URL.split(':')[0],
+  port: process.env.EMAIL_CONFIGS_SMTP_URL.split(':')[1],
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_CONFIGS_SMTP_AUTH_USERNAME,
+    pass: process.env.EMAIL_CONFIGS_SMTP_AUTH_PASSWORD,
+  },
+});
+
+const email = new Email({
+  message: {
+    from: process.env.EMAIL_CONFIGS_SMTP_FROM,
+  },
+  send: true,
+  transport: transporter,
+  views: {
+    options: {
+      extension: 'ejs',
+    },
+  },
+});
+
 app.post('/alert-handler/stop-job', (req, res) => {
   console.log(
-    'alert-handler received `stop-job` post request from alert-manager.'
+    'alert-handler received `stop-job` post request from alert-manager.',
   );
-
   // extract jobs to kill
   const jobNames = [];
   req.body.alerts.forEach(function (alert) {
@@ -66,33 +89,64 @@ app.post('/alert-handler/stop-job', (req, res) => {
   });
 });
 
+async function getAlertsGroupedByUser(alerts, url, token) {
+  const promises = alerts.map(function (alert) {
+    const jobName = alert.labels.job_name;
+    if (jobName) {
+      return new Promise(function (resolve) {
+        return unirest
+          .get(`${url}/api/v2/jobs/${jobName}`)
+          .headers({
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          })
+          .end(function (res) {
+            resolve([res.body.jobStatus.username, alert]);
+          });
+      });
+    }
+  });
+
+  const alertsGrouped = {};
+  return await Promise.all(promises)
+    .then(function (values) {
+      console.log('values:', values);
+      values.forEach(function (value) {
+        const username = value[0];
+        const alert = value[1];
+        if (username in alertsGrouped) {
+          alertsGrouped[username].push(alert);
+        } else {
+          alertsGrouped[username] = [alert];
+        }
+      });
+      return alertsGrouped;
+    })
+    .catch(function (data) {
+      console.error(data);
+    });
+}
+
+async function getUserEmail(username, url, token) {
+  return await new Promise(function (resolve) {
+    return unirest
+      .get(`${url}/api/v2/users/${username}`)
+      .headers({
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      })
+      .end(function (res) {
+        resolve(res.body.email);
+      });
+  });
+}
+
 app.post('/alert-handler/send-email', (req, res) => {
   console.log('alert-handler received `send-email` post request from alert-manager.');
+  // console.log('req.body:', req.body);
+  // console.log('req.body.alerts:', req.body.alerts);
 
-  // create reusable transporter object using the default SMTP transport
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_CONFIGS_SMTP_URL.split(":")[0],
-    port: process.env.EMAIL_CONFIGS_SMTP_URL.split(":")[1],
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_CONFIGS_SMTP_AUTH_USERNAME,
-      pass: process.env.EMAIL_CONFIGS_SMTP_AUTH_PASSWORD,
-    },
-  });
-
-  const email = new Email({
-    message: {
-      from: process.env.EMAIL_CONFIGS_SMTP_FROM,
-    },
-    send: true,
-    transport: transporter,
-    views: {
-      options: {
-        extension: 'ejs'
-      },
-    },
-  });
-
+  // send email to admin
   email
     .send({
       template: 'general-templates',
@@ -106,8 +160,38 @@ app.post('/alert-handler/send-email', (req, res) => {
         externalURL: req.body.externalURL,
       },
     })
-    .then(console.log)
+    .then(function (res) {
+      console.log("alert-handler successfully send email to admin");
+    })
     .catch(console.error);
+
+  // send email to job user when possible
+  // group alerts by username
+  const url = process.env.REST_SERVER_URI;
+  const token = req.token;
+
+  const alertsGrouped = getAlertsGroupedByUser(req.body.alerts, url, token);
+  console.log('alert grouped by username:', alertsGrouped);
+
+  if (alertsGrouped) {
+    // send emails to different users seperately
+    Object.keys(alertsGrouped).forEach(function (username) {
+      const userEmail = getUserEmail(username, url, token);
+      email.send({
+        template: 'general-templates',
+        message: {
+          to: userEmail,
+        },
+        locals: {
+          cluster_id: process.env.CLUSTER_ID,
+          alerts: alertsGrouped[username],
+          groupLabels: req.body.groupLabels,
+          externalURL: req.body.externalURL,
+        },
+      });
+      console.log(`alert-handler successfully send email to user: ${username}`);
+    });
+  }
 
   res.status(200).json({
     message: 'alert-handler successfully',
