@@ -89,7 +89,7 @@ app.post('/alert-handler/stop-job', (req, res) => {
   });
 });
 
-async function getAlertsGroupedByUser(alerts, url, token) {
+const getAlertsGroupedByUser = (alerts, url, token) => {
   const promises = alerts.map(function (alert) {
     const jobName = alert.labels.job_name;
     if (jobName) {
@@ -108,7 +108,7 @@ async function getAlertsGroupedByUser(alerts, url, token) {
   });
 
   const alertsGrouped = {};
-  return await Promise.all(promises)
+  return Promise.all(promises)
     .then(function (values) {
       console.log('values:', values);
       values.forEach(function (value) {
@@ -125,10 +125,10 @@ async function getAlertsGroupedByUser(alerts, url, token) {
     .catch(function (data) {
       console.error(data);
     });
-}
+};
 
-async function getUserEmail(username, url, token) {
-  return await new Promise(function (resolve) {
+const getUserEmail = (username, url, token) => {
+  return new Promise(function (resolve) {
     return unirest
       .get(`${url}/api/v2/users/${username}`)
       .headers({
@@ -139,9 +139,9 @@ async function getUserEmail(username, url, token) {
         resolve(res.body.email);
       });
   });
-}
+};
 
-app.post('/alert-handler/send-email', (req, res) => {
+app.post('/alert-handler/send-email', async (req, res) => {
   console.log('alert-handler received `send-email` post request from alert-manager.');
   // console.log('req.body:', req.body);
   // console.log('req.body.alerts:', req.body.alerts);
@@ -170,13 +170,13 @@ app.post('/alert-handler/send-email', (req, res) => {
   const url = process.env.REST_SERVER_URI;
   const token = req.token;
 
-  const alertsGrouped = getAlertsGroupedByUser(req.body.alerts, url, token);
+  const alertsGrouped = await getAlertsGroupedByUser(req.body.alerts, url, token);
   console.log('alert grouped by username:', alertsGrouped);
 
   if (alertsGrouped) {
     // send emails to different users seperately
-    Object.keys(alertsGrouped).forEach(function (username) {
-      const userEmail = getUserEmail(username, url, token);
+    Object.keys(alertsGrouped).forEach(async (username) => {
+      const userEmail = await getUserEmail(username, url, token);
       email.send({
         template: 'general-templates',
         message: {
