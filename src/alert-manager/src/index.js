@@ -90,20 +90,23 @@ app.post('/alert-handler/stop-job', (req, res) => {
 });
 
 const getAlertsGroupedByUser = (alerts, url, token) => {
-  const promises = alerts.map(function (alert) {
+  const promises = [];
+  alerts.map(function (alert) {
     const jobName = alert.labels.job_name;
     if (jobName) {
-      return new Promise(function (resolve) {
-        return unirest
-          .get(`${url}/api/v2/jobs/${jobName}`)
-          .headers({
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          })
-          .end(function (res) {
-            resolve([res.body.jobStatus.username, alert]);
-          });
-      });
+      promises.push(
+        new Promise(function (resolve) {
+          return unirest
+            .get(`${url}/api/v2/jobs/${jobName}`)
+            .headers({
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            })
+            .end(function (res) {
+              resolve([res.body.jobStatus.username, alert]);
+            });
+        })
+      )
     }
   });
 
