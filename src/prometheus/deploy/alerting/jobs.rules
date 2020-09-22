@@ -31,3 +31,14 @@ groups:
         for: 30m
         annotations:
           summary: "Job {{$labels.job_name}} in pending status detected"
+
+      - alert: LowGpuUsage
+        expr: avg(avg_over_time(task_gpu_percent[10m]) < 10) by (job_name)
+        annotations:
+          summary: "Job {{$labels.job_name}} has a average GPU usage lower than 10% in the last 10 minutes"
+      
+      - alert: LongRunJob
+        expr: 
+        for: 5d # when it exceed 5 days
+        annotations:
+          summary: "Job {{$labels.job_name}} has runned longer than 5 days"

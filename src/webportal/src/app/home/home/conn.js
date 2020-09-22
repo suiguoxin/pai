@@ -50,6 +50,16 @@ export async function listAllJobs(query) {
   return wrapper(() => client.httpClient.get(url, undefined, undefined, query));
 }
 
+export async function listAbnormalJobs(query){
+  const url = urljoin(client.cluster.rest_server_uri, '/api/v2/jobs');
+  return wrapper(() =>
+    client.httpClient.get(url, undefined, undefined, {
+      ...query,
+      ...{ tagsContain: 'abnormal' },
+    }),
+  );
+}
+
 export async function getJobStatusNumber(isAdmin) {
   const url = urljoin(client.cluster.rest_server_uri, '/api/v2/jobs');
   const query = {
@@ -85,6 +95,29 @@ export async function getJobStatusNumber(isAdmin) {
   });
 }
 
+// export async function getLowGpuJobInfos_Archive() {
+//   const prometheusQuery = `avg(avg_over_time(task_gpu_percent[10m]) < 10) by (job_name)`;
+//   const res = await fetch(
+//     `${config.prometheusUri}/api/v1/query?query=${encodeURIComponent(
+//       prometheusQuery,
+//     )}`,
+//   );
+//   const json = await res.json();
+//   if (!res.ok) {
+//     throw new Error(json.message);
+//   }
+
+//   const lowGpuJobInfos = json.data.result.map(keyValuePair => {
+//     const frameworkName = keyValuePair.metric.job_name;
+//     const jobNameBeginIndex = frameworkName.indexOf('~');
+//     return {
+//       jobName: frameworkName.slice(jobNameBeginIndex + 1),
+//       gpuUsage: keyValuePair.value[1],
+//     };
+//   });
+//   return lowGpuJobInfos;
+// }
+
 export async function getUserInfo() {
   return wrapper(() => client.user.getUser(username));
 }
@@ -118,29 +151,6 @@ export async function getAvailableGpuPerNode() {
     const json = await res.json();
     throw new Error(json.error);
   }
-}
-
-export async function getLowGpuJobInfos() {
-  const prometheusQuery = `avg(avg_over_time(task_gpu_percent[10m]) < 10) by (job_name)`;
-  const res = await fetch(
-    `${config.prometheusUri}/api/v1/query?query=${encodeURIComponent(
-      prometheusQuery,
-    )}`,
-  );
-  const json = await res.json();
-  if (!res.ok) {
-    throw new Error(json.message);
-  }
-
-  const lowGpuJobInfos = json.data.result.map(keyValuePair => {
-    const frameworkName = keyValuePair.metric.job_name;
-    const jobNameBeginIndex = frameworkName.indexOf('~');
-    return {
-      jobName: frameworkName.slice(jobNameBeginIndex + 1),
-      gpuUsage: keyValuePair.value[1],
-    };
-  });
-  return lowGpuJobInfos;
 }
 
 export async function stopJob(job) {

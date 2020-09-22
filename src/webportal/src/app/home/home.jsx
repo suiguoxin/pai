@@ -27,16 +27,14 @@ import JobStatus from './home/job-status';
 import { VirtualClusterStatistics } from './home/virtual-cluster-statistics';
 import GpuChart from './home/gpu-chart';
 import {
+  getJobStatusNumber,
+  listAbnormalJobs,
   listJobs,
   getUserInfo,
   listVirtualClusters,
   getAvailableGpuPerNode,
   UnauthorizedError,
-  getLowGpuJobInfos,
-  listAllJobs,
-  getJobStatusNumber,
 } from './home/conn';
-import { listAbnormalJobs } from '../components/util/job';
 import RecentJobList from './home/recent-job-list';
 import AbnormalJobList from './home/abnormal-job-list';
 import { BREAKPOINT1 } from './home/util';
@@ -49,25 +47,19 @@ import t from '../components/tachyons.scss';
 const Home = () => {
   const [loading, setLoading] = useState(true);
   const [jobStatusNumber, setJobStatusNumber] = useState(null);
-  const [runningJobs, setRunningJobs] = useState(null);
+  const [abnormalJobs, setAbnormalJobs] = useState(null);
   const [userJobs, setUserJobs] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [virtualClusters, setVirtualClusters] = useState(null);
   const [gpuPerNode, setGpuPerNode] = useState(null);
-  const [lowGpuJobInfo, setLowGpuJobInfo] = useState(null);
   const isAdmin = cookies.get('admin') === 'true';
 
   useEffect(() => {
     if (!isEmpty(cookies.get('user'))) {
-      if (isAdmin) {
-        getLowGpuJobInfos()
-          .then(setLowGpuJobInfo)
-          .catch(alert);
-      }
       Promise.all([
         getJobStatusNumber(isAdmin).then(setJobStatusNumber),
+        listAbnormalJobs({ state: 'RUNNING' }).then(setAbnormalJobs),
         listJobs({ limit: 100 }).then(setUserJobs),
-        listAllJobs({ state: 'RUNNING' }).then(setRunningJobs),
         getUserInfo().then(setUserInfo),
         listVirtualClusters().then(setVirtualClusters),
         getAvailableGpuPerNode().then(setGpuPerNode),
@@ -132,7 +124,7 @@ const Home = () => {
                     }}
                   >
                     <AbnormalJobList
-                      jobs={listAbnormalJobs(runningJobs, lowGpuJobInfo)}
+                      jobs={ abnormalJobs }
                     />
                   </PivotItem>
                   <PivotItem headerText='My recent jobs'>
@@ -194,7 +186,7 @@ const Home = () => {
                     }}
                   >
                     <AbnormalJobList
-                      jobs={listAbnormalJobs(runningJobs, lowGpuJobInfo)}
+                      jobs={ abnormalJobs }
                     />
                   </PivotItem>
                   <PivotItem headerText='My recent jobs'>
