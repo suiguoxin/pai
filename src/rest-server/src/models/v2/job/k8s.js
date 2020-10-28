@@ -902,6 +902,8 @@ const list = async (
 
 const get = async (frameworkName, jobAttemptId) => {
   // get framework from db
+  console.time("Get Job Detail API");
+  console.time("Get Framework from DB");
   const framework = await databaseModel.Framework.findOne({
     attributes: ['submissionTime', 'snapshot'],
     where: { name: encodeName(frameworkName) },
@@ -913,6 +915,7 @@ const get = async (frameworkName, jobAttemptId) => {
       },
     ],
   });
+  console.timeEnd("Get Framework from DB");
 
   if (!framework) {
     throw createError(
@@ -921,13 +924,17 @@ const get = async (frameworkName, jobAttemptId) => {
       `Job ${frameworkName} is not found.`,
     );
   }
+
+  console.time("JSON parse framework.snapshot");
   const frameworkWithLatestAttempt = JSON.parse(framework.snapshot);
+  console.timeEnd("JSON parse framework.snapshot");
 
   // find the framework with corresponding job attempt when specified
   // use the latest attempt when not specified
   let frameworkWithSpecifiedAttempt = frameworkWithLatestAttempt;
   if (jobAttemptId !== undefined) {
     if (jobAttemptId < frameworkWithLatestAttempt.status.attemptStatus.id) {
+      console.time("Get FrameworkHistory from DB");
       const frameworkHistory = await databaseModel.FrameworkHistory.findOne({
         attributes: ['snapshot'],
         where: {
@@ -942,7 +949,10 @@ const get = async (frameworkName, jobAttemptId) => {
           `JobAttemptId ${jobAttemptId} is not found in ${frameworkName}.`,
         );
       }
+      console.timeEnd("Get FrameworkHistory from DB");
+      console.time("JSON parse frameworkHistory.snapshot");
       frameworkWithSpecifiedAttempt = JSON.parse(frameworkHistory.snapshot);
+      console.timeEnd("JSON parse frameworkHistory.snapshot");
     } else if (
       jobAttemptId > frameworkWithLatestAttempt.status.attemptStatus.id
     ) {
@@ -953,6 +963,7 @@ const get = async (frameworkName, jobAttemptId) => {
       );
     }
   }
+  console.time("Convert Framework Detail");
   // convert to response schema
   const frameworkDetail = await convertFrameworkDetail(
     frameworkWithLatestAttempt,
@@ -962,6 +973,8 @@ const get = async (frameworkName, jobAttemptId) => {
   frameworkDetail.jobStatus.submissionTime = new Date(
     framework.submissionTime,
   ).getTime();
+  console.timeEnd("Convert Framework Detail");
+  console.timeEnd("Get Job Detail API");
   return frameworkDetail;
 };
 
