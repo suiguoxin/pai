@@ -17,6 +17,7 @@
 
 
 import os
+import argparse
 import sys
 import time
 import readline
@@ -41,18 +42,18 @@ class ClusterCmd():
         cluster_parser = parser.add_subparsers(help="cluster operations")
 
         # ./paictl.py cluster k8s-bootup ...
-        bootup_parser = cluster_parser.add_parser("k8s-bootup")
+        bootup_parser = cluster_parser.add_parser("k8s-bootup", description="bootup kubernetes", formatter_class=argparse.RawDescriptionHelpFormatter)
         bootup_parser.add_argument("-p", "--config-path", dest="config_path", required=True, help="path of cluster configuration file")
         bootup_parser.set_defaults(handler=self.k8s_bootup)
 
         # ./paictl.py cluster k8s-clean ...
-        clean_parser = cluster_parser.add_parser("k8s-clean")
+        clean_parser = cluster_parser.add_parser("k8s-clean", description="clean kubernetes", formatter_class=argparse.RawDescriptionHelpFormatter)
         clean_parser.add_argument("-p", "--config-path", dest="config_path", required=True, help="path of cluster configuration file")
         clean_parser.add_argument("-f", "--force", dest="force", required=False, action="store_true", help="clean all the data forcefully")
         clean_parser.set_defaults(handler=self.k8s_clean)
 
         # ./paictl.py cluster k8s-set-env ...
-        env_parser = cluster_parser.add_parser("k8s-set-env")
+        env_parser = cluster_parser.add_parser("k8s-set-env", description="set kubernetes environment", formatter_class=argparse.RawDescriptionHelpFormatter)
         env_parser.add_argument("-p", "--config-path", dest="config_path", help="path of cluster configuration file")
         env_parser.set_defaults(handler=self.k8s_set_environment)
 
