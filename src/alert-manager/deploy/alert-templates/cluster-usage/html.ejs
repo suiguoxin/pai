@@ -22,6 +22,25 @@
         </td>
       </tr>
       <% }); %>
+      <tr>
+        <th>VC name</th>
+        <th>Nodes Count</th>
+        <th>GPU utilization</th>
+      </tr>
+      <% alerts.filter( element=> typeof element.labels.name !== 'undefined' && typeof element.labels.usage !==
+        'undefined').forEach(function(alert){ %>
+        <tr>
+          <td>
+            <%= alert.labels.name %>
+          </td>
+          <td>
+            <%= alert.labels.nodes_count %>
+          </td>
+          <td>
+            <%= alert.labels.usage %>
+          </td>
+        </tr>
+        <% }); %>
   </table>
   <br />
   <br />
