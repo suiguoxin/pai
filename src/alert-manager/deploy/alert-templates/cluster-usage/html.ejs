@@ -21,27 +21,30 @@
           <%= alert.labels.cluster_usage %>
         </td>
       </tr>
-      <% }); %>
-      <tr>
-        <th>VC name</th>
-        <th>Nodes Count</th>
-        <th>GPU utilization</th>
-      </tr>
-      <% alerts.filter( element=> typeof element.labels.name !== 'undefined' && typeof element.labels.usage !==
-        'undefined').forEach(function(alert){ %>
-        <tr>
-          <td>
-            <%= alert.labels.name %>
-          </td>
-          <td>
-            <%= alert.labels.nodes_count %>
-          </td>
-          <td>
-            <%= alert.labels.usage %>
-          </td>
-        </tr>
-        <% }); %>
+    <% }); %>
   </table>
+  <h3 style="text-align:center">VC GPU Utilization for One Week</h3>
+  <table style="font-size: 16px; width: 100%;margin: 0;text-align:center;">
+    <tr>
+      <th>VC name</th>
+      <th>Nodes Count</th>
+      <th>GPU utilization</th>
+    </tr>
+    <% alerts.filter( element=> typeof element.labels.name !== 'undefined' && typeof element.labels.usage !==
+      'undefined').forEach(function(alert){ %>
+      <tr>
+        <td>
+          <%= alert.labels.name %>
+        </td>
+        <td>
+          <%= alert.labels.nodes_count %>
+        </td>
+        <td>
+          <%= alert.labels.usage %>
+        </td>
+      </tr>
+      <% }); %>
+    </table>
   <br />
   <br />
   <h3 style="text-align:center">User GPU Utilization for One Week</h3>
