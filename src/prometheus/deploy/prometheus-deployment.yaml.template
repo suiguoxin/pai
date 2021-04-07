@@ -66,6 +66,7 @@ spec:
           - '--web.route-prefix=prometheus'
           - '--storage.tsdb.path=/prometheus-data'
           - '--storage.tsdb.retention=31d'
+          - '--enable-feature=promql-at-modifier'
         ports:
         - name: web
           containerPort: {{prometheus_port}}
