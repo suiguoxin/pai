@@ -16,7 +16,7 @@
     ]
   },
   "description": "Dashboard to view multiple servers",
-  "editable": false,
+  "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
   "hideControls": true,
@@ -151,7 +151,7 @@
           "dashes": false,
           "datasource": "PM",
           "decimals": 2,
-          "editable": true,
+          "c": true,
           "error": false,
           "fill": 0,
           "grid": {},
