@@ -89,7 +89,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100 - (avg by (instance)(irate(node_cpu_seconds_total{mode=\"idle\",instance=~\"$node(:[0-9]*)?$\"}[60s])) * 100)",
+              "expr": "100 - (avg by (instance)(irate(node_cpu_seconds_total{mode=\"idle\",instance=~\"$node(:[0-9]*)?$\"}[{{interval}}])) * 100)",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -151,7 +151,7 @@
           "dashes": false,
           "datasource": "PM",
           "decimals": 2,
-          "c": true,
+          "editable": true,
           "error": false,
           "fill": 0,
           "grid": {},
@@ -344,7 +344,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(node_network_receive_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
+              "expr": "sum(irate(node_network_receive_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -355,7 +355,7 @@
               "target": ""
             },
             {
-              "expr": "sum(rate(node_network_transmit_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
+              "expr": "sum(irate(node_network_transmit_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -450,7 +450,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(node_disk_read_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
+              "expr": "sum(irate(node_disk_read_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -461,7 +461,7 @@
               "target": ""
             },
             {
-              "expr": "sum(rate(node_disk_written_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
+              "expr": "sum(irate(node_disk_written_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -469,7 +469,7 @@
               "refId": "B"
             },
             {
-              "expr": "sum(rate(node_disk_other_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
+              "expr": "sum(irate(node_disk_other_bytes_total{instance=~\"$node(:[0-9]*)?$\"}[{{interval}}s]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
